@@ -87,7 +87,7 @@ public class MallManager : MonoBehaviour {
                 map[j, i] = c;
             }
         }
-        // shops
+        // floor1 shops
         for (int i = 0; i < shopCntPerFloor; i++)
         {
             // vertical walls
@@ -114,6 +114,7 @@ public class MallManager : MonoBehaviour {
         }
 
 
+
         // floor 2
         for (int i = 0; i < floorWidth; i++)
         {
@@ -127,6 +128,51 @@ public class MallManager : MonoBehaviour {
                 map[j + floorLen + stairLen, i] = c;
             }
         }
+
+        // floor2 shops
+        int floor2ShopLenBase = floorLen + stairLen + shopFrontSpaceLen;
+        for (int i = 0; i < shopCntPerFloor; i++)
+        {
+            // vertical walls
+            for (int j = 0; j < shopInnerLen + 2; j++)
+            {
+                for (int k = 0; k < shopInterval * 0.5 + 1; k++)
+                {
+                    // left
+                    map[j + floor2ShopLenBase, k + i * (shopInterval + 2 + shopInnerWidth)].occupiedBy = WALL;
+                    // right
+                    map[j + floor2ShopLenBase, k + i * (shopInterval + 2 + shopInnerWidth) + shopInterval / 2 + shopInnerWidth + 1].occupiedBy = WALL;
+                }
+            }
+            // horizontal walls
+            for (int j = 0; j < shopInnerWidth; j++)
+            {
+                // bottom
+                map[floor2ShopLenBase, j + i * (shopInterval + 2 + shopInnerWidth) + shopInterval / 2 + 1].occupiedBy = WALL;
+                // top
+                map[shopInnerLen + 1 + floor2ShopLenBase, j + i * (shopInterval + 2 + shopInnerWidth) + shopInterval / 2 + 1].occupiedBy = WALL;
+            }
+            // entrance
+            map[floor2ShopLenBase, i * (shopInterval + 2 + shopInnerWidth) + shopInterval / 2 + 2].occupiedBy = UNOCCUPIED;
+        }
+
+
+        // stairs
+        int spaceBetweenStairs = (floorWidth - stairCnt) / (stairCnt + 1);
+        float heightDiffBetweenStairs = (floorTwoHeight - floorOneHeight) / (float)(stairLen);
+        Debug.Log(spaceBetweenStairs);
+        for (int i = 0; i < stairCnt; i++)
+        {
+            for (int j = 0; j< stairLen; j++)
+            {
+                Cell c = new Cell();
+                c.occupiedBy = UNOCCUPIED;
+                c.pos = new Vector3((i + 1) * spaceBetweenStairs, heightDiffBetweenStairs * j , j + floorLen);
+                map[j + floorLen, (i + 1) * spaceBetweenStairs] = c;
+            }
+        }
+
+
     }
 
     void buildMap()
