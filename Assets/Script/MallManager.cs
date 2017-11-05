@@ -33,6 +33,7 @@ public class MallManager : MonoBehaviour {
 
     int mapWidth;
     int mapLen;
+    int validPlantRowInAFloor;
 
     public int stairLen;
     int stairWidth = 1;
@@ -47,9 +48,10 @@ public class MallManager : MonoBehaviour {
     int shopInnerLen = 3;
     int shopInterval = 2;
     int shopFrontSpaceLen = 4;
+    int plantCnt = 4;
 
 
-    public Vector3[] plantsPos;
+
     public Cell[,] map; // conceptual map, bool value means that if this  
 
 
@@ -72,6 +74,7 @@ public class MallManager : MonoBehaviour {
         floorLen = (2 + shopInnerLen) + shopFrontSpaceLen;
         floorWidth = mapWidth;
         mapLen = floorLen * 2 + stairLen;
+        validPlantRowInAFloor = shopFrontSpaceLen - 2;
 
 
         // init map
@@ -160,7 +163,7 @@ public class MallManager : MonoBehaviour {
         // stairs
         int spaceBetweenStairs = (floorWidth - stairCnt) / (stairCnt + 1);
         float heightDiffBetweenStairs = (floorTwoHeight - floorOneHeight) / (float)(stairLen);
-        Debug.Log(spaceBetweenStairs);
+        //Debug.Log(spaceBetweenStairs);
         for (int i = 0; i < stairCnt; i++)
         {
             for (int j = 0; j< stairLen; j++)
@@ -172,7 +175,36 @@ public class MallManager : MonoBehaviour {
             }
         }
 
+        // plants
+        for (int i = 0; i< plantCnt; i++)
+        {
+            Cell c = null;
+            while (c == null || c.occupiedBy != UNOCCUPIED)
+            {
+                Vector2 plantPos = getRandomPlantPos();
+                c = map[(int)plantPos.x, (int)plantPos.y];
+            }
 
+            c.occupiedBy = PLANT;
+        }
+
+
+    }
+
+    Vector2 getRandomPlantPos()
+    {
+        int col = Random.Range(0, floorWidth);
+        int rowInFloor = Random.Range(0, validPlantRowInAFloor);
+        int floorNumber = Random.Range(0, 2);
+
+        if (floorNumber == 0)
+        {
+            // floor 1
+            return new Vector2(rowInFloor + 2 + shopInnerLen + 1, col);
+            map[rowInFloor + 2 + shopInnerLen + 1, col].occupiedBy = PLANT;
+        }
+        // floor 2
+        return new Vector2(floorLen + stairLen + rowInFloor + 1, col);
     }
 
     void buildMap()
@@ -194,13 +226,20 @@ public class MallManager : MonoBehaviour {
                     tempFloor.tag = "floor";
                     tempFloor.transform.parent = floorHolder.transform;
 
-                    // build wall
+                    // build occupant
                     if (c.occupiedBy == WALL)
                     {
                         Vector3 occupantPos = c.pos;
                         occupantPos.y += 0.25f;  // floor thick 
                         occupant = Instantiate(wall, occupantPos, Quaternion.identity);
                     }
+                    if (c.occupiedBy == PLANT)
+                    {
+                        Vector3 occupantPos = c.pos;
+                        occupantPos.y += 0.25f;  // floor thick 
+                        occupant = Instantiate(plant, occupantPos, Quaternion.identity);
+                    }
+
                 }
 
             }
