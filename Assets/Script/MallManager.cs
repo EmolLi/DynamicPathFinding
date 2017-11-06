@@ -3,6 +3,47 @@ using System.Collections.Generic;
 using UnityEngine;
 
 
+
+[System.Serializable]
+public class Cell
+{
+    public int occupiedBy;  // 0: unoccupied, 1: people, 2: plant, 3: wall
+    public Vector3 pos;
+    public GameObject tile;
+    /**
+    public bool visited;
+    public Vector3 pos;
+    public GameObject north;    // 1
+    public GameObject east;     // 2    
+    public GameObject west;     // 3
+    public GameObject south;    // 4
+    public List<int> neighbors;**/
+}
+
+[System.Serializable]
+public class Shopper
+{
+    public Vector2 cellPos;
+    public GameObject shopper;
+    public ShopperMovement sm;
+    public int goal = 2;
+    public Vector2 goalDestPos;
+
+    public void setPath(Vector3[] path)
+    {
+        sm.path = path;
+        sm.cur = 0;
+        sm.destinationReached = false;
+    }
+}
+
+[System.Serializable]
+public class Shop
+{
+    public Vector2[] cellPos;
+    public Cell[] cells;
+}
+
 public class MallManager : MonoBehaviour {
     //-------------- static value-----------------
     // tile occupiant
@@ -16,38 +57,6 @@ public class MallManager : MonoBehaviour {
     public const int IDLE = 2;
 
 
-
-    [System.Serializable]
-    public class Cell
-    {
-        public int occupiedBy;  // 0: unoccupied, 1: people, 2: plant, 3: wall
-        public Vector3 pos;
-        /**
-        public bool visited;
-        public Vector3 pos;
-        public GameObject north;    // 1
-        public GameObject east;     // 2    
-        public GameObject west;     // 3
-        public GameObject south;    // 4
-        public List<int> neighbors;**/
-    }
-
-    [System.Serializable]
-    public class Shopper
-    {
-        public Vector2 cellPos;
-        public GameObject shopper;
-        public ShopperMovement sm;
-        public int goal = 2;
-        public Vector3 goalDestPos;
-
-        public void setPath(Vector3[] path)
-        {
-            sm.path = path;
-            sm.cur = 0;
-            sm.destinationReached = false;
-        }
-    }
 
 
     public GameObject plant;
@@ -73,7 +82,9 @@ public class MallManager : MonoBehaviour {
     int shopInnerLen = 3;
     int shopInterval = 2;
     int shopFrontSpaceLen = 4;
-    int plantCnt = 4;
+    public Shop[] shops;
+
+    public int plantCnt = 4;
 
 
 
@@ -93,7 +104,7 @@ public class MallManager : MonoBehaviour {
         buildMap();
         initShoppers();
 
-        ////shoppers[0].sm.path = new Vector3[1];
+        //shoppers[0].sm.path = new Vector3[1];
         //shoppers[0].sm.path[0] = map[6, 7].pos;
         //Debug.Log(shoppers[0].sm.path);
     }
@@ -111,6 +122,14 @@ public class MallManager : MonoBehaviour {
 
         // init map
         map = new Cell[mapLen, mapWidth];
+        shops = new Shop[shopCntPerFloor * 2];
+        for (int i = 0; i< shopCntPerFloor * 2; i++)
+        {
+            shops[i] = new Shop();
+            shops[i].cellPos = new Vector2[shopInnerLen * shopInnerWidth];
+            shops[i].cells = new Cell[shopInnerLen * shopInnerWidth];
+        }
+
         // floor 1
         for (int i = 0; i < floorWidth; i++)
         {
@@ -141,11 +160,20 @@ public class MallManager : MonoBehaviour {
             {
                 // bottom
                 map[0, j + i * (shopInterval + 2 + shopInnerWidth) + shopInterval / 2 + 1].occupiedBy = WALL;
+
+                // shop inner space
+                for (int k = 1; k <= shopInnerLen; k++)
+                {
+                    shops[i].cellPos[j*shopInnerLen + k - 1] = new Vector2(k, j + i * (shopInterval + 2 + shopInnerWidth) + shopInterval / 2 + 1);
+                    shops[i].cells[j * shopInnerLen + k - 1] = map[k, j + i * (shopInterval + 2 + shopInnerWidth) + shopInterval / 2 + 1];
+                }
+
                 // top
                 map[shopInnerLen + 1, j + i * (shopInterval + 2 + shopInnerWidth) + shopInterval / 2 + 1].occupiedBy = WALL;
             }
             // entrance
             map[shopInnerLen + 1, i * (shopInterval + 2 + shopInnerWidth) + shopInterval / 2 + 2].occupiedBy = UNOCCUPIED;
+
         }
 
 
@@ -184,6 +212,14 @@ public class MallManager : MonoBehaviour {
             {
                 // bottom
                 map[floor2ShopLenBase, j + i * (shopInterval + 2 + shopInnerWidth) + shopInterval / 2 + 1].occupiedBy = WALL;
+
+                // shop inner space
+                for (int k = 1; k <= shopInnerLen; k++)
+                {
+                    shops[i + shopCntPerFloor].cellPos[j * shopInnerLen + k - 1] = new Vector2(floor2ShopLenBase + k, j + i * (shopInterval + 2 + shopInnerWidth) + shopInterval / 2 + 1);
+                    shops[i + shopCntPerFloor].cells[j * shopInnerLen + k - 1] = map[floor2ShopLenBase + k, j + i * (shopInterval + 2 + shopInnerWidth) + shopInterval / 2 + 1];
+                }
+
                 // top
                 map[shopInnerLen + 1 + floor2ShopLenBase, j + i * (shopInterval + 2 + shopInnerWidth) + shopInterval / 2 + 1].occupiedBy = WALL;
             }
@@ -228,7 +264,7 @@ public class MallManager : MonoBehaviour {
 
 
         Cell c = null;
-        Vector2 plantPos = new Vector2();
+        Vector2 pos = new Vector2();
         while (c == null || c.occupiedBy != UNOCCUPIED)
         {
             int col = Random.Range(0, floorWidth);
@@ -239,15 +275,15 @@ public class MallManager : MonoBehaviour {
             if (floorNumber == 0)
             {
                 // floor 1
-                plantPos = new Vector2(rowInFloor + 2 + shopInnerLen + 1, col);
-                map[rowInFloor + 2 + shopInnerLen + 1, col].occupiedBy = PLANT;
+                pos = new Vector2(rowInFloor + 2 + shopInnerLen + 1, col);
+               
             }
             // floor 2
-           else plantPos = new Vector2(floorLen + stairLen + rowInFloor + 1, col);
+           else pos = new Vector2(floorLen + stairLen + rowInFloor + 1, col);
 
-            c = map[(int)plantPos.x, (int)plantPos.y];
+            c = map[(int)pos.x, (int)pos.y];
         }
-        return plantPos;
+        return pos;
     }
 
     void buildMap()
@@ -278,6 +314,7 @@ public class MallManager : MonoBehaviour {
                     tempFloor = Instantiate(floor, c.pos, Quaternion.identity);
                     tempFloor.tag = "floor";
                     tempFloor.transform.parent = floorHolder.transform;
+                    c.tile = tempFloor;
 
                     // build occupant
                     if (c.occupiedBy == WALL)
@@ -329,6 +366,7 @@ public class MallManager : MonoBehaviour {
             sObj.shopper = s;
             sObj.cellPos = shopperPos;
             sObj.sm = s.GetComponent<ShopperMovement>();
+            sObj.goalDestPos = shopperPos;  // current pos
 
             shoppers[i] = sObj;
         }
@@ -357,17 +395,21 @@ public class MallManager : MonoBehaviour {
             {
                 // IDLE
                 s.goal = IDLE;
-                s.setPath(null);
 
             }
             else if (random < 0.6)
             {
                 // MOVE
-
+                s.goal = MOVE;
+                Vector2 randomDes = getRandomOccupantPos();
+                s.goalDestPos = randomDes;
             }
-            else if (random < 1)
+            else
             {
                 // SHOP
+                s.goal = SHOP;
+                int randomShop = Random.Range(0, shopCntPerFloor * 2);
+
             }
         }
 

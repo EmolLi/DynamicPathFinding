@@ -7,11 +7,13 @@ public class ShopperMovement : MonoBehaviour {
     public float speed = 1f;
     public int cur = 0;
     public bool destinationReached;
+    //private Cell[,] map;
 
     // Use this for initialization
     void Start () {
         speed = 1f;
         destinationReached = false;
+        //map = GameObject.Find("Mall").GetComponent<MallManager>().map;
     }
 	
 	// Update is called once per frame
@@ -26,10 +28,12 @@ public class ShopperMovement : MonoBehaviour {
         else if (cur < path.Length - 1)
         {
             cur++;
+
         }
         else
         {
             destinationReached = true;
+
         }
     }
 }
