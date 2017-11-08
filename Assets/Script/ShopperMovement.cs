@@ -28,12 +28,10 @@ public class ShopperMovement : MonoBehaviour {
         else if (cur < path.Length - 1)
         {
             cur++;
-
         }
         else
         {
             destinationReached = true;
-
         }
     }
 }
