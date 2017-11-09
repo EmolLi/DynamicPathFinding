@@ -11,32 +11,27 @@ public class Cell
     public Vector3 pos;
     public GameObject tile;
     public bool bookedAsGoal;
-    /**
-    public bool visited;
-    public Vector3 pos;
-    public GameObject north;    // 1
-    public GameObject east;     // 2    
-    public GameObject west;     // 3
-    public GameObject south;    // 4
-    public List<int> neighbors;**/
 }
 
 [System.Serializable]
 public class Shopper
 {
+    public int id;
     public Vector2 cellPos;
     public GameObject shopper;
     public ShopperMovement sm;
     public int goal = 2;
     public Vector2 goalDestPos;
     public bool goalReachedInThisPlanningWin;
+    public Vector3[] tempPath;
+    public bool tempGoalReached;
 
-    public void setPath(Vector3[] path, bool goalReachedInThisPlanningWin)
+    public void setPath()
     {
-        sm.path = path;
-        sm.cur = 0;
+        sm.path = this.tempPath;
+        sm.next = 0;
         sm.destinationReached = false;
-        this.goalReachedInThisPlanningWin = goalReachedInThisPlanningWin;
+        this.goalReachedInThisPlanningWin = this.tempGoalReached;
     }
 }
 
@@ -47,7 +42,8 @@ public class Shop
     public Cell[] cells;
 }
 
-public class MallManager : MonoBehaviour {
+public class MallManager : MonoBehaviour
+{
     //-------------- static value-----------------
     // tile occupiant
     public const int UNOCCUPIED = 0;
@@ -59,7 +55,6 @@ public class MallManager : MonoBehaviour {
     public const int MOVE = 0;
     public const int SHOP = 1;
     public const int IDLE = 2;
-
 
 
 
@@ -103,19 +98,15 @@ public class MallManager : MonoBehaviour {
 
 
     // Use this for initialization
-    void Start () {
-
-        Dictionary<Vector3, int> a = new Dictionary<Vector3, int>();
-        a.Add(new Vector3(1, 1, 1), 1);
-        Debug.Log(a.ContainsKey(new Vector3(1, 1, 1)));
+    void Start()
+    {
 
         initMap();
         buildMap();
         initShoppers();
-        InvokeRepeating("selectShopperGoals", startingInSec, selectGoalIntervalTime);
-        //shoppers[0].sm.path = new Vector3[1];
-        //shoppers[0].sm.path[0] = map[6, 7].pos;
-        //Debug.Log(shoppers[0].sm.path);
+        selectShopperGoals();
+        InvokeRepeating("pathSearch", startingInSec, playerMovementUpdateFrequency + 0.4f);
+
     }
 
 
@@ -132,7 +123,7 @@ public class MallManager : MonoBehaviour {
         // init map
         map = new Cell[mapLen, mapWidth];
         shops = new Shop[shopCntPerFloor * 2];
-        for (int i = 0; i< shopCntPerFloor * 2; i++)
+        for (int i = 0; i < shopCntPerFloor * 2; i++)
         {
             shops[i] = new Shop();
             shops[i].cellPos = new Vector2[shopInnerLen * shopInnerWidth];
@@ -142,7 +133,7 @@ public class MallManager : MonoBehaviour {
         // floor 1
         for (int i = 0; i < floorWidth; i++)
         {
-            for (int j = 0; j< floorLen; j++)
+            for (int j = 0; j < floorLen; j++)
             {
                 Cell c = new Cell();
                 c.occupiedBy = UNOCCUPIED;
@@ -173,7 +164,7 @@ public class MallManager : MonoBehaviour {
                 // shop inner space
                 for (int k = 1; k <= shopInnerLen; k++)
                 {
-                    shops[i].cellPos[j*shopInnerLen + k - 1] = new Vector2(k, j + i * (shopInterval + 2 + shopInnerWidth) + shopInterval / 2 + 1);
+                    shops[i].cellPos[j * shopInnerLen + k - 1] = new Vector2(k, j + i * (shopInterval + 2 + shopInnerWidth) + shopInterval / 2 + 1);
                     shops[i].cells[j * shopInnerLen + k - 1] = map[k, j + i * (shopInterval + 2 + shopInnerWidth) + shopInterval / 2 + 1];
                 }
 
@@ -243,23 +234,23 @@ public class MallManager : MonoBehaviour {
         //Debug.Log(spaceBetweenStairs);
         for (int i = 0; i < stairCnt; i++)
         {
-            for (int j = 0; j< stairLen; j++)
+            for (int j = 0; j < stairLen; j++)
             {
                 Cell c = new Cell();
                 c.occupiedBy = UNOCCUPIED;
-                c.pos = new Vector3((i + 1) * spaceBetweenStairs, heightDiffBetweenStairs * j , j + floorLen);
+                c.pos = new Vector3((i + 1) * spaceBetweenStairs, heightDiffBetweenStairs * j, j + floorLen);
                 map[j + floorLen, (i + 1) * spaceBetweenStairs] = c;
             }
         }
 
         // plants
-        for (int i = 0; i< plantCnt; i++)
+        for (int i = 0; i < plantCnt; i++)
         {
             //Cell c = null;
             //while (c == null || c.occupiedBy != UNOCCUPIED)
             //{
-                Vector2 plantPos = getRandomOccupantPos();
-               Cell c = map[(int)plantPos.x, (int)plantPos.y];
+            Vector2 plantPos = getRandomOccupantPos();
+            Cell c = map[(int)plantPos.x, (int)plantPos.y];
             //}
 
             c.occupiedBy = PLANT;
@@ -285,10 +276,10 @@ public class MallManager : MonoBehaviour {
             {
                 // floor 1
                 pos = new Vector2(rowInFloor + 2 + shopInnerLen + 1, col);
-               
+
             }
             // floor 2
-           else pos = new Vector2(floorLen + stairLen + rowInFloor + 1, col);
+            else pos = new Vector2(floorLen + stairLen + rowInFloor + 1, col);
 
             c = map[(int)pos.x, (int)pos.y];
         }
@@ -297,7 +288,7 @@ public class MallManager : MonoBehaviour {
 
     void buildMap()
     {
-        
+
         floorHolder = new GameObject();
         floorHolder.name = "floors";
         floorHolder.transform.parent = gameObject.transform;
@@ -314,7 +305,7 @@ public class MallManager : MonoBehaviour {
         GameObject occupant;
         for (int i = 0; i < mapLen; i++)
         {
-            for (int j = 0; j< mapWidth; j++)
+            for (int j = 0; j < mapWidth; j++)
             {
                 Cell c = map[i, j];
                 if (c != null)
@@ -346,7 +337,7 @@ public class MallManager : MonoBehaviour {
             }
         }
     }
-	
+
 
 
     void initShoppers()
@@ -367,18 +358,20 @@ public class MallManager : MonoBehaviour {
             s.transform.parent = shopperHolder.transform;
 
             Shopper sObj = new Shopper();
+            sObj.id = i;
             sObj.shopper = s;
             sObj.cellPos = shopperPos;
-            sObj.sm = s.GetComponent<ShopperMovement>();
+            sObj.sm = new ShopperMovement();
             sObj.goalDestPos = shopperPos;  // current pos
 
             shoppers[i] = sObj;
         }
-       
+
     }
-	// Update is called once per frame
-	void Update () {
-    }
+    // Update is called once per frame
+    //void Update()
+    //{
+    //}
 
 
 
@@ -386,11 +379,11 @@ public class MallManager : MonoBehaviour {
 
 
     //-------------------shopper motion & motion planning----------------------------------
-    public float selectGoalIntervalTime = 2f;
+    public float playerMovementUpdateFrequency = 1f;
     public float startingInSec = 1f;
-    public int planningWinSize; // steptime
+    public int planningWinSize = 20; // steptime
     public int firstShopper;    // start with this shopper to do the planning
-
+    private int planningWinTimeCounter = 0;
 
     void selectShopperGoals()
     {
@@ -405,16 +398,8 @@ public class MallManager : MonoBehaviour {
         if (s.goal == IDLE || (s.sm.destinationReached && s.goalReachedInThisPlanningWin))
         {
             // able to set a new goal
-            float random = Random.Range(0, 5);
-            Debug.Log(random);
+            int random = Random.Range(0, 2);
             if (random == 0)
-            {
-                // IDLE
-                //map[(int)s.goalDestPos.x, (int)s.goalDestPos.y].bookedAsGoal = false;
-                s.goal = IDLE;
-
-            }
-            else if (random < 3)
             {
                 // MOVE
                 map[(int)s.goalDestPos.x, (int)s.goalDestPos.y].bookedAsGoal = false;
@@ -437,7 +422,7 @@ public class MallManager : MonoBehaviour {
                     randomShop = Random.Range(0, shopCntPerFloor * 2);
                     Shop shop = shops[randomShop];
                     // select a spot
-                    for (int i = 0; i< shop.cells.Length; i++)
+                    for (int i = 0; i < shop.cells.Length; i++)
                     {
                         if (shop.cells[i].occupiedBy == UNOCCUPIED && !shop.cells[i].bookedAsGoal)
                         {
@@ -478,117 +463,248 @@ public class MallManager : MonoBehaviour {
             this.reservedBy = reservedBy;
             this.prev = prev;
         }
+
     }
 
     public Dictionary<Vector3, AStarCell> reservationTable;    // key: (x, y, t)
+    public Dictionary<Vector3, AStarCell> closeSet;
+    Dictionary<Vector3, AStarCell> openSet;
 
     private int manhattanDist(Vector2 p1, Vector2 p2)
     {
-        return (int) (Mathf.Abs(p2.x - p1.x) + Mathf.Abs(p2.y - p1.y));
+        return (int)(Mathf.Abs(p2.x - p1.x) + Mathf.Abs(p2.y - p1.y));
     }
 
     private void pathSearch()
     {
         // init
-
         reservationTable = new Dictionary<Vector3, AStarCell>();
-        HashSet<AStarCell> openSet = new HashSet<AStarCell>();
-        HashSet<AStarCell> closeSet = new HashSet<AStarCell>();
+        openSet = new Dictionary<Vector3, AStarCell>();
+        closeSet = new Dictionary<Vector3, AStarCell>();
 
         Shopper s = shoppers[firstShopper];
+        for (int i = 0; i < shopperCnt; i++)
+        {
+            findPathForAShopper(shoppers[(i + firstShopper) % shopperCnt]);
+        }
+
+        foreach (Shopper sh in shoppers)
+        {
+            sh.setPath();
+        }
+
+        planningWinTimeCounter = 0;
+        InvokeRepeating("updatePlayerMovement", 0f, playerMovementUpdateFrequency);
+
+    }
+
+
+    private void findPathForAShopper(Shopper s)
+    {
         // starting node
         AStarCell cur = new AStarCell(map[(int)s.cellPos.x, (int)s.cellPos.y], new Vector3(s.cellPos.x, s.cellPos.y, 0), 0, manhattanDist(s.cellPos, s.goalDestPos), firstShopper, null);
-        openSet.Add(cur);
+        openSet.Add(cur.pos, cur);
         while (openSet.Count > 0)
         {
-            // find node with least f
-            foreach (AStarCell ac in openSet)
-            {
-                if (ac.f < cur.f)
-                {
-                    cur = ac;
-                }
-            }
-            openSet.Remove(cur);
 
+            openSet.Remove(cur.pos);
+            //if (closeSet.ContainsKey(cur.pos))
+            //{
+                //closeSet.Add(cur.pos, cur);
+                Debug.Log("hi" + cur.pos.x + " " +cur.pos.y + " " + cur.pos.z);
+            //}
+            closeSet.Add(cur.pos, cur);
+
+
+            // =======stop search========
+            // 1. dest found
+            // 2. time is up
+            if (cur.pos.x == s.goalDestPos.x && cur.pos.y == s.goalDestPos.y)
+            {
+                // construct path
+                s.tempGoalReached = true;
+                s.tempPath = constructPath(cur, s.id);
+                continue;
+            }
+
+            else if (cur.pos.z == planningWinSize - 1)
+            {
+                s.tempGoalReached = false;
+                s.tempPath = constructPath(cur, s.id);
+                continue;
+            }
+
+
+
+            // ==========continue search========
             int x;
             int y;
             int t = (int)cur.pos.z + 1;
             int c = (int)cur.c + 1;
-            if (t < planningWinSize)
+
+
+            // get traversable successors
+            // a valid next move should be 1. traversable, 2. not in closedSet
+            // we check if the successor is traversable before we put it in the successors array
+            // then check if it's in closedSet when we are searching successors to choose next step
+            AStarCell[] successors = new AStarCell[5];
+
+            // up
+            x = (int)cur.pos.x - 1;
+            y = (int)cur.pos.y;
+            Vector3 up = new Vector3(x, y, t);
+
+            if (x >= 0 && map[x, y] != null && map[x, y].occupiedBy == UNOCCUPIED && !reservationTable.ContainsKey(up))
             {
-                // get successors
-                AStarCell[] successors = new AStarCell[5];
-                // up
-                Vector3 up = new Vector3(cur.pos.x - 1, cur.pos.y, t);
-                if (cur.pos.x > 0 &&
-                    map[(int)cur.pos.x - 1, (int)cur.pos.y].occupiedBy == UNOCCUPIED &&
-                    !reservationTable.ContainsKey(up))
+
+                successors[0] = new AStarCell(map[(int)cur.pos.x - 1, (int)cur.pos.y], up, c, manhattanDist(new Vector2(cur.pos.x, cur.pos.y), s.goalDestPos), -1, cur);
+            }
+
+            // down
+            x = (int)cur.pos.x + 1;
+            y = (int)cur.pos.y;
+            Vector3 down = new Vector3(x, y, t);
+
+            if (x < mapLen && map[x, y] != null && map[x, y].occupiedBy == UNOCCUPIED && !reservationTable.ContainsKey(down))
+            {
+                successors[1] = new AStarCell(map[x, y], down, c, manhattanDist(new Vector2(x, y), s.goalDestPos), -1, cur);
+            }
+
+            // left
+            x = (int)cur.pos.x;
+            y = (int)cur.pos.y - 1;
+            Vector3 left = new Vector3(x, y, t);
+
+            if (y >= 0 && map[x, y] != null && map[x, y].occupiedBy == UNOCCUPIED && !reservationTable.ContainsKey(left))
+            {
+                successors[2] = new AStarCell(map[x, y], left, c, manhattanDist(new Vector2(x, y), s.goalDestPos), -1, cur);
+            }
+
+
+            // right
+            x = (int)cur.pos.x;
+            y = (int)cur.pos.y + 1;
+            Vector3 right = new Vector3(x, y, t);
+            if (y < mapWidth && map[x, y] != null && map[x, y].occupiedBy == UNOCCUPIED && !reservationTable.ContainsKey(right))
+            {
+                successors[3] = new AStarCell(map[x, y], right, c, manhattanDist(new Vector2(x, y), s.goalDestPos), -1, cur);
+            }
+
+            // idle
+            x = (int)cur.pos.x;
+            y = (int)cur.pos.y;
+            Vector3 idle = new Vector3(x, y, t);
+            if (!reservationTable.ContainsKey(idle))
+            {
+                successors[4] = new AStarCell(map[x, y], idle, c, manhattanDist(new Vector2(x, y), s.goalDestPos), -1, cur);
+            }
+
+
+
+            // search successor
+            for (int i = 0; i < 5; i++)
+            {
+                AStarCell successor = successors[i];
+                if (successor != null)
                 {
-                    successors[0] = new AStarCell(map[(int)cur.pos.x - 1, (int)cur.pos.y], up, c, manhattanDist(new Vector2(cur.pos.x, cur.pos.y), s.goalDestPos), -1, cur);
-                }
 
-                // down
-                x = (int)cur.pos.x + 1;
-                y = (int)cur.pos.y;
-                Vector3 down = new Vector3(x, y, t);
-                if (x < mapLen && map[x, y].occupiedBy == UNOCCUPIED && !reservationTable.ContainsKey(down))
-                {
-                    successors[1] = new AStarCell(map[x, y], down, c, manhattanDist(new Vector2(x, y), s.goalDestPos), -1, cur);
-                }
-
-                // left
-                x = (int)cur.pos.x;
-                y = (int)cur.pos.y - 1;
-                Vector3 left = new Vector3(x, y, t);
-                if (y >= 0 && map[x, y].occupiedBy == UNOCCUPIED && !reservationTable.ContainsKey(down))
-                {
-                    successors[2] = new AStarCell(map[x, y], left, c, manhattanDist(new Vector2(x, y), s.goalDestPos), -1, cur);
-                }
-
-                // right
-                x = (int)cur.pos.x;
-                y = (int)cur.pos.y + 1;
-                Vector3 right = new Vector3(x, y, t);
-                if (y < mapWidth && map[x, y].occupiedBy == UNOCCUPIED && !reservationTable.ContainsKey(right))
-                {
-                    successors[3] = new AStarCell(map[x, y], right, c, manhattanDist(new Vector2(x, y), s.goalDestPos), -1, cur);
-                }
-
-                // idle
-                x = (int)cur.pos.x;
-                y = (int)cur.pos.y;
-                Vector3 idle = new Vector3(x, y, t);
-                if (!reservationTable.ContainsKey(idle))
-                {
-                    successors[4] = new AStarCell(map[x, y], idle, c, manhattanDist(new Vector2(x, y), s.goalDestPos), -1, cur);
-                }
-
-
-
-                // search successor
-                for (int i = 0; i < 5; i++)
-                {
-                    AStarCell successor = successors[i];
-                    if (successor != null)
+                    // no need to explore this successor if it's already in the closedSet
+                    if (!closeSet.ContainsKey(successor.pos))
                     {
-                        // stop search if the successor is goal
-                        if (successor.pos.x == s.goalDestPos.x && successor.pos.y == s.goalDestPos.y)
+                        // add successor to openSearch to explore later if
+                        // 1. new path to neighbor is shorter (smaller f)
+                        // 2. neighbor is not in openSet
+                        if (!openSet.ContainsKey(successor.pos) ||
+                            successor.f < openSet[successor.pos].f)
                         {
-                            // path found
-
+                            if (openSet.ContainsKey(successor.pos))
+                            {
+                                openSet.Remove(successor.pos);
+                            }
+                            openSet.Add(successor.pos, successor);
                         }
                     }
                 }
             }
 
+            AStarCell tempCur = cur;
+            cur = null;
+            // find node with least f
+            foreach (AStarCell ac in openSet.Values)
+            {
+                // /*FIXME/**/*/
+                //if (closeSet.ContainsKey(ac.pos))
+                //{
+                    //openSet.Remove(ac.pos);
+                    //continue;
+                //}
+                if (cur == null || ac.f < cur.f)
+                {
+                    if (!closeSet.ContainsKey(ac.pos))
+                    {
+                        cur = ac;
+                    }
+                }
+            }
+        }
+    }
 
+    private Vector3[] constructPath(AStarCell dest, int shopperIndex)
+    {
+        Vector3[] path = new Vector3[(int)dest.pos.z + 1];
+        AStarCell cur = dest;
+        for (int i = 0; i < path.Length; i++)
+        {
+            cur.reservedBy = shopperIndex;
+            if (reservationTable.ContainsKey(cur.pos))
+            {
+                Debug.Log("2");
+            }
+            reservationTable.Add(cur.pos, cur);
+            path[(int)cur.pos.z] = cur.cell.pos;
+            cur = cur.prev;
+        }
+        return path;
+    }
+
+
+
+
+    //===============player movement=============
+    private void updatePlayerMovement()
+    {
+        planningWinTimeCounter++;
+        if (planningWinTimeCounter == planningWinSize) CancelInvoke("updatePlayerMovement");
+        foreach (Shopper s in shoppers)
+        {
+            if (s.sm.path != null && s.sm.path.Length != 0 && s.sm.destinationReached)
+            {
+                if (s.sm.next == s.sm.path.Length)
+                {
+                    s.sm.destinationReached = true;
+                    if (s.goalReachedInThisPlanningWin)
+                    {
+                        // set next goal if goal reached
+                        selectSingleShopperGoal(s);
+                    }
+                }
+                else
+                {
+                    s.shopper.transform.position = s.sm.path[s.sm.next];
+                    s.cellPos = s.sm.path[s.sm.next];
+                    s.sm.next++;
+                }
+            }
         }
     }
 }
 
-/**
-public class PathFindingManager{
-    public int planningWinSize; // steptime
-    public int firstShopper;    // start with this shopper to do the planning
-    }**/
+[System.Serializable]
+public class ShopperMovement
+{
+    public Vector3[] path = null;
+    public float speed = 1f;
+    public int next = 0;
+    public bool destinationReached;
+
+}
