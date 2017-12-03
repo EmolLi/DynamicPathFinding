@@ -25,6 +25,13 @@ public class Shopper
     public bool goalReachedInThisPlanningWin;
     public Vector3[] tempPath;
     public bool tempGoalReached;
+    public int failedCnt;
+
+
+    // test
+    public List<int> timeSteps = new List<int>();
+    public List<bool> findDest = new List<bool>();
+    public int failtToFindDestCnt;
 
     public void setPath()
     {
@@ -47,7 +54,7 @@ public class MallManager : MonoBehaviour
     //-------------- static value-----------------
     // tile occupiant
     public const int UNOCCUPIED = 0;
-    public const int SHOPPER = 1;
+    ////public const int SHOPPER = 1;
     public const int PLANT = 2;
     public const int WALL = 3;
 
@@ -97,6 +104,11 @@ public class MallManager : MonoBehaviour
     private GameObject shopperHolder;
 
 
+
+    // test
+    public int testCnt = 50;    // 10 goals
+    public bool testMode = false;
+
     // Use this for initialization
     void Start()
     {
@@ -105,9 +117,15 @@ public class MallManager : MonoBehaviour
         buildMap();
         initShoppers();
         selectShopperGoals();
-        InvokeRepeating("pathSearch", startingInSec, playerMovementUpdateFrequency + 0.4f);
+        pathSearch();
 
     }
+    /**
+    void test()
+    {
+        
+    }**/
+
 
 
     void initMap()
@@ -282,6 +300,7 @@ public class MallManager : MonoBehaviour
             else pos = new Vector2(floorLen + stairLen + rowInFloor + 1, col);
 
             c = map[(int)pos.x, (int)pos.y];
+
         }
         return pos;
     }
@@ -346,11 +365,20 @@ public class MallManager : MonoBehaviour
         shopperHolder.name = "shoppers";
         shoppers = new Shopper[shopperCnt];
 
+
+        HashSet<Vector2> dup = new HashSet<Vector2>();
         for (int i = 0; i < shopperCnt; i++)
         {
             Vector2 shopperPos = getRandomOccupantPos();
+            while (dup.Contains(shopperPos))
+            {
+                shopperPos = getRandomOccupantPos();
+            }
+            dup.Add(shopperPos);
+
+
             Cell c = map[(int)shopperPos.x, (int)shopperPos.y];
-            c.occupiedBy = SHOPPER;
+            //c.occupiedBy = SHOPPER;
 
             Vector3 occupantPos = c.pos;
             occupantPos.y += 0.5f;  // floor thick 
@@ -365,7 +393,11 @@ public class MallManager : MonoBehaviour
             sObj.goalDestPos = shopperPos;  // current pos
 
             shoppers[i] = sObj;
+
+            //Debug.Log("s" + sObj.id + " " + getKey(sObj.cellPos));
         }
+
+
 
     }
     // Update is called once per frame
@@ -383,7 +415,7 @@ public class MallManager : MonoBehaviour
     public float startingInSec = 1f;
     public int planningWinSize = 20; // steptime
     public int firstShopper;    // start with this shopper to do the planning
-    private int planningWinTimeCounter = 0;
+    public int planningWinTimeCounter = 0;
 
     void selectShopperGoals()
     {
@@ -395,48 +427,56 @@ public class MallManager : MonoBehaviour
 
     void selectSingleShopperGoal(Shopper s)
     {
-        if (s.goal == IDLE || (s.sm.destinationReached && s.goalReachedInThisPlanningWin))
+        //if (s.goal == IDLE || (s.sm.destinationReached && s.goalReachedInThisPlanningWin))
+        //{
+        // able to set a new goal
+        int random = Random.Range(0, 2);
+        if (random == 0)
         {
-            // able to set a new goal
-            int random = Random.Range(0, 2);
-            if (random == 0)
-            {
-                // MOVE
-                map[(int)s.goalDestPos.x, (int)s.goalDestPos.y].bookedAsGoal = false;
-                s.goal = MOVE;
-                Vector2 randomDes = getRandomOccupantPos();
-                s.goalDestPos = randomDes;
-                map[(int)randomDes.x, (int)randomDes.y].bookedAsGoal = true;
-            }
-            else
-            {
-                // SHOP
-                s.goal = SHOP;
-                map[(int)s.goalDestPos.x, (int)s.goalDestPos.y].bookedAsGoal = false;
+            // MOVE
+            map[(int)s.goalDestPos.x, (int)s.goalDestPos.y].bookedAsGoal = false;
+            s.goal = MOVE;
+            Vector2 randomDes = getRandomOccupantPos();
+            s.goalDestPos = randomDes;
+            map[(int)randomDes.x, (int)randomDes.y].bookedAsGoal = true;
+        }
+        else
+        {
+            // SHOP
+            s.goal = SHOP;
+            map[(int)s.goalDestPos.x, (int)s.goalDestPos.y].bookedAsGoal = false;
 
-                Vector2 des = new Vector2();
-                int randomShop = -1;
-                bool desFound = false;
-                while (!desFound)
+            Vector2 des = new Vector2();
+            int randomShop = -1;
+            bool desFound = false;
+            while (!desFound)
+            {
+                randomShop = Random.Range(0, shopCntPerFloor * 2);
+                Shop shop = shops[randomShop];
+                // select a spot
+                for (int i = 0; i < shop.cells.Length; i++)
                 {
-                    randomShop = Random.Range(0, shopCntPerFloor * 2);
-                    Shop shop = shops[randomShop];
-                    // select a spot
-                    for (int i = 0; i < shop.cells.Length; i++)
+                    if (shop.cells[i].occupiedBy == UNOCCUPIED && !shop.cells[i].bookedAsGoal)
                     {
-                        if (shop.cells[i].occupiedBy == UNOCCUPIED && !shop.cells[i].bookedAsGoal)
-                        {
-                            des = shop.cellPos[i];
-                            shop.cells[i].bookedAsGoal = true;
-                            desFound = true;
-                        }
+                        des = shop.cellPos[i];
+                        shop.cells[i].bookedAsGoal = true;
+                        desFound = true;
                     }
                 }
-                // assume ppl cnt < spots in shops
-                s.goalDestPos = des;
-                map[(int)s.goalDestPos.x, (int)s.goalDestPos.y].bookedAsGoal = true;
             }
+            // assume ppl cnt < spots in shops
+            s.goalDestPos = des;
+            map[(int)s.goalDestPos.x, (int)s.goalDestPos.y].bookedAsGoal = true;
+
+            // test
+            if (testMode)
+            {
+                if (s.failedCnt != -1)
+                s.timeSteps.Add(s.failedCnt);
+            }
+            s.failedCnt = 0;
         }
+        //}
 
     }
 
@@ -464,11 +504,16 @@ public class MallManager : MonoBehaviour
             this.prev = prev;
         }
 
+        public string key()
+        {
+            return MallManager.getKey(this.pos);
+        }
+
     }
 
-    public Dictionary<Vector3, AStarCell> reservationTable;    // key: (x, y, t)
-    public Dictionary<Vector3, AStarCell> closeSet;
-    Dictionary<Vector3, AStarCell> openSet;
+    public Dictionary<string, AStarCell> reservationTable;    // key: (x, y, t)
+    public Dictionary<string, AStarCell> closeSet;
+    Dictionary<string, AStarCell> openSet;
 
     private int manhattanDist(Vector2 p1, Vector2 p2)
     {
@@ -478,11 +523,8 @@ public class MallManager : MonoBehaviour
     private void pathSearch()
     {
         // init
-        reservationTable = new Dictionary<Vector3, AStarCell>();
-        openSet = new Dictionary<Vector3, AStarCell>();
-        closeSet = new Dictionary<Vector3, AStarCell>();
+        reservationTable = new Dictionary<string, AStarCell>();
 
-        Shopper s = shoppers[firstShopper];
         for (int i = 0; i < shopperCnt; i++)
         {
             findPathForAShopper(shoppers[(i + firstShopper) % shopperCnt]);
@@ -494,6 +536,7 @@ public class MallManager : MonoBehaviour
         }
 
         planningWinTimeCounter = 0;
+        firstShopper = (firstShopper + 1) % shopperCnt;
         InvokeRepeating("updatePlayerMovement", 0f, playerMovementUpdateFrequency);
 
     }
@@ -501,37 +544,57 @@ public class MallManager : MonoBehaviour
 
     private void findPathForAShopper(Shopper s)
     {
+        openSet = new Dictionary<string, AStarCell>();
+        closeSet = new Dictionary<string, AStarCell>();
+
         // starting node
         AStarCell cur = new AStarCell(map[(int)s.cellPos.x, (int)s.cellPos.y], new Vector3(s.cellPos.x, s.cellPos.y, 0), 0, manhattanDist(s.cellPos, s.goalDestPos), firstShopper, null);
-        openSet.Add(cur.pos, cur);
+        openSet.Add(cur.key(), cur);
         while (openSet.Count > 0)
         {
-
-            openSet.Remove(cur.pos);
-            //if (closeSet.ContainsKey(cur.pos))
-            //{
-                //closeSet.Add(cur.pos, cur);
-                Debug.Log("hi" + cur.pos.x + " " +cur.pos.y + " " + cur.pos.z);
-            //}
-            closeSet.Add(cur.pos, cur);
+            openSet.Remove(cur.key());
+            closeSet.Add(cur.key(), cur);
 
 
             // =======stop search========
             // 1. dest found
             // 2. time is up
-            if (cur.pos.x == s.goalDestPos.x && cur.pos.y == s.goalDestPos.y)
-            {
-                // construct path
-                s.tempGoalReached = true;
-                s.tempPath = constructPath(cur, s.id);
-                continue;
-            }
+            //if (cur.pos.x == s.goalDestPos.x && cur.pos.y == s.goalDestPos.y)
+            //{
+            // construct path
+            //s.tempGoalReached = true;
+            //s.tempPath = constructPath(cur, s.id);
+            //return;
+            //}
 
-            else if (cur.pos.z == planningWinSize - 1)
+            if (cur.pos.z == planningWinSize - 1)
             {
-                s.tempGoalReached = false;
+                if (cur.pos.x == s.goalDestPos.x && cur.pos.y == s.goalDestPos.y)
+                {
+                    s.tempGoalReached = true;
+                    
+                }
+                else
+                {
+                    s.tempGoalReached = false;
+                    s.failedCnt++;
+                    if (s.failedCnt == 8)
+                    {
+                        s.failedCnt = -1;
+                        // fail
+                        s.failtToFindDestCnt++;
+                        selectSingleShopperGoal(s);
+                    }
+                }
                 s.tempPath = constructPath(cur, s.id);
-                continue;
+
+
+                // test
+                if (testMode)
+                {
+                    s.findDest.Add(s.tempGoalReached);
+                }
+                return;
             }
 
 
@@ -547,17 +610,17 @@ public class MallManager : MonoBehaviour
             // a valid next move should be 1. traversable, 2. not in closedSet
             // we check if the successor is traversable before we put it in the successors array
             // then check if it's in closedSet when we are searching successors to choose next step
-            AStarCell[] successors = new AStarCell[5];
+            List<AStarCell> successors = new List<AStarCell>();
 
             // up
             x = (int)cur.pos.x - 1;
             y = (int)cur.pos.y;
             Vector3 up = new Vector3(x, y, t);
 
-            if (x >= 0 && map[x, y] != null && map[x, y].occupiedBy == UNOCCUPIED && !reservationTable.ContainsKey(up))
+            if (x >= 0 && map[x, y] != null && map[x, y].occupiedBy == UNOCCUPIED)
             {
 
-                successors[0] = new AStarCell(map[(int)cur.pos.x - 1, (int)cur.pos.y], up, c, manhattanDist(new Vector2(cur.pos.x, cur.pos.y), s.goalDestPos), -1, cur);
+                successors.Add(new AStarCell(map[x, y], up, c, manhattanDist(new Vector2(x, y), s.goalDestPos), -1, cur));
             }
 
             // down
@@ -565,9 +628,9 @@ public class MallManager : MonoBehaviour
             y = (int)cur.pos.y;
             Vector3 down = new Vector3(x, y, t);
 
-            if (x < mapLen && map[x, y] != null && map[x, y].occupiedBy == UNOCCUPIED && !reservationTable.ContainsKey(down))
+            if (x < mapLen && map[x, y] != null && map[x, y].occupiedBy == UNOCCUPIED)
             {
-                successors[1] = new AStarCell(map[x, y], down, c, manhattanDist(new Vector2(x, y), s.goalDestPos), -1, cur);
+                successors.Add(new AStarCell(map[x, y], down, c, manhattanDist(new Vector2(x, y), s.goalDestPos), -1, cur));
             }
 
             // left
@@ -575,9 +638,9 @@ public class MallManager : MonoBehaviour
             y = (int)cur.pos.y - 1;
             Vector3 left = new Vector3(x, y, t);
 
-            if (y >= 0 && map[x, y] != null && map[x, y].occupiedBy == UNOCCUPIED && !reservationTable.ContainsKey(left))
+            if (y >= 0 && map[x, y] != null && map[x, y].occupiedBy == UNOCCUPIED)
             {
-                successors[2] = new AStarCell(map[x, y], left, c, manhattanDist(new Vector2(x, y), s.goalDestPos), -1, cur);
+                successors.Add(new AStarCell(map[x, y], left, c, manhattanDist(new Vector2(x, y), s.goalDestPos), -1, cur));
             }
 
 
@@ -585,45 +648,44 @@ public class MallManager : MonoBehaviour
             x = (int)cur.pos.x;
             y = (int)cur.pos.y + 1;
             Vector3 right = new Vector3(x, y, t);
-            if (y < mapWidth && map[x, y] != null && map[x, y].occupiedBy == UNOCCUPIED && !reservationTable.ContainsKey(right))
+            if (y < mapWidth && map[x, y] != null && map[x, y].occupiedBy == UNOCCUPIED)
             {
-                successors[3] = new AStarCell(map[x, y], right, c, manhattanDist(new Vector2(x, y), s.goalDestPos), -1, cur);
+                successors.Add(new AStarCell(map[x, y], right, c, manhattanDist(new Vector2(x, y), s.goalDestPos), -1, cur));
             }
 
             // idle
             x = (int)cur.pos.x;
             y = (int)cur.pos.y;
             Vector3 idle = new Vector3(x, y, t);
-            if (!reservationTable.ContainsKey(idle))
-            {
-                successors[4] = new AStarCell(map[x, y], idle, c, manhattanDist(new Vector2(x, y), s.goalDestPos), -1, cur);
-            }
+            successors.Add(new AStarCell(map[x, y], idle, c, manhattanDist(new Vector2(x, y), s.goalDestPos), -1, cur));
 
 
 
             // search successor
-            for (int i = 0; i < 5; i++)
+            foreach (AStarCell successor in successors)
             {
-                AStarCell successor = successors[i];
-                if (successor != null)
-                {
+                if (closeSet.ContainsKey(successor.key())) continue;
+                if (reservationTable.ContainsKey(successor.key())) continue;
 
-                    // no need to explore this successor if it's already in the closedSet
-                    if (!closeSet.ContainsKey(successor.pos))
+
+                if (s.id > 0)
+                {
+                    if (reservationTable.ContainsKey(successor.key()))
                     {
-                        // add successor to openSearch to explore later if
-                        // 1. new path to neighbor is shorter (smaller f)
-                        // 2. neighbor is not in openSet
-                        if (!openSet.ContainsKey(successor.pos) ||
-                            successor.f < openSet[successor.pos].f)
-                        {
-                            if (openSet.ContainsKey(successor.pos))
-                            {
-                                openSet.Remove(successor.pos);
-                            }
-                            openSet.Add(successor.pos, successor);
-                        }
+                        Debug.Log("asc");
                     }
+                }
+
+                // no need to explore this successor if it's already in the closedSet
+
+                // add successor to openSearch to explore later if
+                // 1. new path to neighbor is shorter (smaller f)
+                // 2. neighbor is not in openSet
+                if (!openSet.ContainsKey(successor.key())) openSet.Add(successor.key(), successor);
+
+                else if (successor.f < openSet[successor.key()].f)
+                {
+                    openSet[successor.key()] = successor;
                 }
             }
 
@@ -632,38 +694,47 @@ public class MallManager : MonoBehaviour
             // find node with least f
             foreach (AStarCell ac in openSet.Values)
             {
-                // /*FIXME/**/*/
-                //if (closeSet.ContainsKey(ac.pos))
-                //{
-                    //openSet.Remove(ac.pos);
-                    //continue;
-                //}
                 if (cur == null || ac.f < cur.f)
                 {
-                    if (!closeSet.ContainsKey(ac.pos))
-                    {
-                        cur = ac;
-                    }
+                    cur = ac;
                 }
             }
+
         }
     }
 
     private Vector3[] constructPath(AStarCell dest, int shopperIndex)
     {
-        Vector3[] path = new Vector3[(int)dest.pos.z + 1];
+        Vector3[] path = new Vector3[planningWinSize];
+        string[] tPath = new string[(int)dest.pos.z + 1];
         AStarCell cur = dest;
-        for (int i = 0; i < path.Length; i++)
+        for (int i = 0; i <= dest.pos.z; i++)
         {
             cur.reservedBy = shopperIndex;
-            if (reservationTable.ContainsKey(cur.pos))
+            if (reservationTable.ContainsKey(cur.key()))
             {
-                Debug.Log("2");
+                Debug.Log("sdf");
             }
-            reservationTable.Add(cur.pos, cur);
+
+            reservationTable.Add(cur.key(), cur);
+
             path[(int)cur.pos.z] = cur.cell.pos;
+            tPath[(int)cur.pos.z] = getKey(cur.pos);
             cur = cur.prev;
         }
+
+        cur = dest;
+        for (int i = 0; i <= dest.pos.z; i++)
+        {
+            if (cur.pos.z <= 1) continue;
+            Vector3 h2h = new Vector3(cur.pos.x, cur.pos.y, cur.pos.z - 1);
+            if (!reservationTable.ContainsKey(getKey(h2h)))
+            {
+                reservationTable.Add(getKey(h2h), cur);
+            }
+            cur = cur.prev;
+        }
+
         return path;
     }
 
@@ -673,12 +744,20 @@ public class MallManager : MonoBehaviour
     //===============player movement=============
     private void updatePlayerMovement()
     {
-        planningWinTimeCounter++;
-        if (planningWinTimeCounter == planningWinSize) CancelInvoke("updatePlayerMovement");
         foreach (Shopper s in shoppers)
         {
-            if (s.sm.path != null && s.sm.path.Length != 0 && s.sm.destinationReached)
+            if (s.sm.path != null && s.sm.path.Length != 0 && !s.sm.destinationReached)
             {
+                if (s.sm.next < s.sm.path.Length)
+                {
+                    s.shopper.transform.position = s.sm.path[s.sm.next];
+                    s.cellPos = new Vector2(s.sm.path[s.sm.next].z, s.sm.path[s.sm.next].x);
+                    if (s.cellPos == new Vector2(0, 0))
+                    {
+                        Debug.Log("f");
+                    }
+                    s.sm.next++;
+                }
                 if (s.sm.next == s.sm.path.Length)
                 {
                     s.sm.destinationReached = true;
@@ -688,14 +767,50 @@ public class MallManager : MonoBehaviour
                         selectSingleShopperGoal(s);
                     }
                 }
-                else
-                {
-                    s.shopper.transform.position = s.sm.path[s.sm.next];
-                    s.cellPos = s.sm.path[s.sm.next];
-                    s.sm.next++;
-                }
             }
         }
+
+        planningWinTimeCounter++;
+        if (planningWinTimeCounter == planningWinSize)
+        {
+            CancelInvoke("updatePlayerMovement");
+            if (testMode)
+            {
+                testCnt--;
+                if (testCnt > 0)
+                {
+                    pathSearch();
+                }
+
+                else
+                {
+
+                    Debug.Log("end!   ");
+                    int failureCnt = 0;
+                    int successTimeStepCnt = 0;
+                    int successCnt = 0;
+                    foreach (Shopper s in shoppers)
+                    {
+                        failureCnt += s.failtToFindDestCnt;
+
+                        foreach (int k in s.timeSteps)
+                        {
+                            successTimeStepCnt += k;
+                            successCnt++;
+                        }
+                    }
+                    Debug.Log((successCnt + failureCnt) + " " + failureCnt + "  " + failureCnt / (float)(successCnt + failureCnt) + "  " + successTimeStepCnt / (float)successCnt);
+                }
+            }
+            else pathSearch();
+            return;
+        }
+    }
+
+
+    public static string getKey(Vector3 v)
+    {
+        return (int)v.x + "-" + (int)v.y + "-" + (int)v.z;
     }
 }
 
