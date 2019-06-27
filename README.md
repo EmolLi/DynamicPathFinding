@@ -4,7 +4,7 @@
 This project is an assignemnt for COMP 521 (Modern Computer Games) in McGill University. It simulates the shoppers behavior 
 in a 2-story mall using cooperative (dynamic) path finding proposed in this [paper](https://pdfs.semanticscholar.org/ec6e/5c1a3a5729094347076fc45a503abd630eb8.pdf).
 
-The project is written in C#, with Unity 3D.
+The project is written in C#, with Unity 3D. The source code is in [Scripts](https://github.com/EmolLi/DynamicPathFinding/tree/master/Assets/Script) folder.
 
 Following is the detailed assignment requirement.
 
