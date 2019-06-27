@@ -24,6 +24,8 @@ This is a 3D design, but we will treat it as planar by ensuring that the levels 
 below (note that the stores do not have any ceilings). This will let you fully observe the simulation from a top-down
 camera, and simplify motion-planning.
 
+![img](https://github.com/EmolLi/DynamicPathFinding/blob/master/Screenshot%20from%202019-06-27%2014-34-39.png)
+
 The layout is not necessarily to scale or in proper proportion; there should be ample space in front of the stores for
 shoppers to move around (3–5 deep), and width-wise there should be room for at least 5 shoppers between each shop
 entrance.
